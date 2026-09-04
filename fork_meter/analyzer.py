@@ -7,6 +7,7 @@ Cyclomatic complexity analyzer using tree-sitter AST traversal.
 
 import logging
 from bisect import bisect_left
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -459,6 +460,7 @@ def analyze(
     exclude_patterns: tuple[str, ...] = (),
     max_threshold: int = 10,
     ignore_file: IgnoreFile | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> AnalysisResult:
     """Scan *paths*, compute cyclomatic complexity, and filter results by threshold.
 
@@ -466,12 +468,17 @@ def analyze(
     :param exclude_patterns: Glob patterns to exclude from scanning.
     :param max_threshold: Only include results with complexity strictly above this value.
     :param ignore_file: Optional gitignore-style filter; matched paths are skipped.
+    :param on_progress: Optional callback invoked as ``on_progress(done, total)`` after
+        each file is analyzed.
     :returns: :class:`AnalysisResult` with summary counts and filtered results.
     """
     files = _scanner.scan(paths, exclude_patterns, ignore_file=ignore_file)
+    total = len(files)
     all_results: list[ComplexityResult] = []
-    for file_path, language in files:
+    for done, (file_path, language) in enumerate(files, start=1):
         all_results.extend(analyze_file(file_path, language))
+        if on_progress is not None:
+            on_progress(done, total)
 
     filtered = [r for r in all_results if r.complexity > max_threshold]
     _logger.info(
