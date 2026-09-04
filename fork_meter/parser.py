@@ -13,7 +13,7 @@ from tree_sitter import Language, Parser, Tree
 _logger = logging.getLogger(__name__)
 
 
-def _build_language(  # pylint: disable=too-many-return-statements
+def _build_language(  # pylint: disable=too-many-return-statements,too-many-branches
     language_name: str,
 ) -> Language | None:
     """Instantiate the tree-sitter Language for *language_name*."""
@@ -40,6 +40,30 @@ def _build_language(  # pylint: disable=too-many-return-statements
             return Language(m.language())
         case "Go":
             import tree_sitter_go as m  # pylint: disable=import-outside-toplevel
+
+            return Language(m.language())
+        case "C":
+            import tree_sitter_c as m  # pylint: disable=import-outside-toplevel
+
+            return Language(m.language())
+        case "C++":
+            import tree_sitter_cpp as m  # pylint: disable=import-outside-toplevel
+
+            return Language(m.language())
+        case "C#":
+            import tree_sitter_c_sharp as m  # pylint: disable=import-outside-toplevel
+
+            return Language(m.language())
+        case "Rust":
+            import tree_sitter_rust as m  # pylint: disable=import-outside-toplevel
+
+            return Language(m.language())
+        case "Kotlin":
+            import tree_sitter_kotlin as m  # pylint: disable=import-outside-toplevel
+
+            return Language(m.language())
+        case "Scala":
+            import tree_sitter_scala as m  # pylint: disable=import-outside-toplevel
 
             return Language(m.language())
         case _:

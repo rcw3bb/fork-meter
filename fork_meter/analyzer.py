@@ -10,6 +10,7 @@ from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from braincraft import IgnoreFile
 from tree_sitter import Language, Node, Query, QueryCursor
 
 from . import parser as _parser
@@ -26,6 +27,12 @@ _FRAGMENT_QUERIES: dict[str, str] = {
     "Java": "[(method_declaration) (constructor_declaration)] @fragment",
     "Go": "[(function_declaration) (method_declaration)] @fragment",
     "Gosu": "[(function_declaration) (constructor_declaration)] @fragment",
+    "C": "(function_definition) @fragment",
+    "C++": "(function_definition) @fragment",
+    "C#": "[(method_declaration) (constructor_declaration)] @fragment",
+    "Rust": "(function_item) @fragment",
+    "Kotlin": "(function_declaration) @fragment",
+    "Scala": "[(function_definition) (function_declaration)] @fragment",
 }
 
 # Node types that represent a branching decision point per language.
@@ -91,6 +98,67 @@ _DECISION_NODES: dict[str, frozenset[str]] = {
             "ternary_expression",
         }
     ),
+    "C": frozenset(
+        {
+            "if_statement",
+            "for_statement",
+            "while_statement",
+            "do_statement",
+            "case_statement",
+            "conditional_expression",
+        }
+    ),
+    "C++": frozenset(
+        {
+            "if_statement",
+            "for_statement",
+            "for_range_loop",
+            "while_statement",
+            "do_statement",
+            "catch_clause",
+            "case_statement",
+            "conditional_expression",
+        }
+    ),
+    "C#": frozenset(
+        {
+            "if_statement",
+            "for_statement",
+            "foreach_statement",
+            "while_statement",
+            "do_statement",
+            "catch_clause",
+            "switch_section",
+            "conditional_expression",
+        }
+    ),
+    "Rust": frozenset(
+        {
+            "if_expression",
+            "for_expression",
+            "while_expression",
+            "loop_expression",
+            "match_arm",
+        }
+    ),
+    "Kotlin": frozenset(
+        {
+            "if_expression",
+            "for_statement",
+            "while_statement",
+            "do_while_statement",
+            "when_entry",
+            "catch_block",
+        }
+    ),
+    "Scala": frozenset(
+        {
+            "if_expression",
+            "for_expression",
+            "while_expression",
+            "case_clause",
+        }
+    ),
 }
 
 # Node types whose subtrees are pruned during decision-point counting (nested code units).
@@ -126,13 +194,51 @@ _NESTED_STOP_TYPES: dict[str, frozenset[str]] = {
     "Gosu": frozenset(
         {"function_declaration", "constructor_declaration", "class_declaration"}
     ),
+    "C": frozenset({"function_definition"}),
+    "C++": frozenset(
+        {
+            "function_definition",
+            "lambda_expression",
+            "class_specifier",
+            "struct_specifier",
+        }
+    ),
+    "C#": frozenset(
+        {
+            "method_declaration",
+            "constructor_declaration",
+            "local_function_statement",
+            "lambda_expression",
+            "class_declaration",
+        }
+    ),
+    "Rust": frozenset({"function_item", "closure_expression"}),
+    "Kotlin": frozenset(
+        {
+            "function_declaration",
+            "anonymous_function",
+            "lambda_literal",
+            "class_declaration",
+        }
+    ),
+    "Scala": frozenset(
+        {
+            "function_definition",
+            "function_declaration",
+            "lambda_expression",
+            "class_definition",
+            "object_definition",
+        }
+    ),
 }
 
 # AST node types that represent a class body, used when walking up the parent chain.
 _CLASS_NODE_TYPES: frozenset[str] = frozenset(
     {
-        "class_definition",  # Python
-        "class_declaration",  # JavaScript, TypeScript, Java, Gosu
+        "class_definition",  # Python, Scala
+        "class_declaration",  # JavaScript, TypeScript, Java, Gosu, C#, Kotlin
+        "class_specifier",  # C++
+        "struct_specifier",  # C++
     }
 )
 
@@ -159,8 +265,20 @@ class AnalysisResult:
     results: list[ComplexityResult] = field(default_factory=list)
 
 
-def _get_name(node: Node) -> str | None:
+def _get_name_c_family(node: Node) -> str | None:
+    """Return the identifier at the bottom of a C/C++ ``function_definition``'s declarator chain."""
+    declarator = node.child_by_field_name("declarator")
+    while declarator is not None:
+        if declarator.type in ("identifier", "field_identifier"):
+            return declarator.text.decode("utf-8", errors="replace")
+        declarator = declarator.child_by_field_name("declarator")
+    return None
+
+
+def _get_name(node: Node, language: str) -> str | None:
     """Return the declared name of *node*, or ``None`` for anonymous code blocks."""
+    if language in ("C", "C++"):
+        return _get_name_c_family(node)
     name_node = node.child_by_field_name("name")
     if name_node is None:
         return None
@@ -186,10 +304,25 @@ def _get_parent_class_go(node: Node) -> str | None:
     return None
 
 
+def _get_parent_class_rust(node: Node) -> str | None:
+    """Return the enclosing ``impl`` block's type name for a Rust ``function_item``."""
+    current = node.parent
+    while current is not None:
+        if current.type == "impl_item":
+            type_node = current.child_by_field_name("type")
+            if type_node is not None:
+                return type_node.text.decode("utf-8", errors="replace")
+            return None
+        current = current.parent
+    return None
+
+
 def _get_parent_class(node: Node, language: str) -> str | None:
     """Return the enclosing class name, or ``None`` for top-level code blocks."""
     if language == "Go" and node.type == "method_declaration":
         return _get_parent_class_go(node)
+    if language == "Rust" and node.type == "function_item":
+        return _get_parent_class_rust(node)
     current = node.parent
     while current is not None:
         if current.type in _CLASS_NODE_TYPES:
@@ -203,12 +336,15 @@ def _get_parent_class(node: Node, language: str) -> str | None:
 def _resolve_fragment_type(node: Node, language: str, parent_class: str | None) -> str:
     """Return the fragment type string for *node*."""
     raw = _FRAGMENT_TYPE_MAP.get(node.type, "function")
-    # Python uses function_definition for both functions and methods.
-    if (
-        language == "Python"
-        and node.type == "function_definition"
-        and parent_class is not None
-    ):
+    # Python, C++, Rust, Kotlin, and Scala reuse one node type for both functions and methods.
+    method_like_types = {
+        "Python": "function_definition",
+        "C++": "function_definition",
+        "Rust": "function_item",
+        "Kotlin": "function_declaration",
+        "Scala": "function_definition",
+    }
+    if method_like_types.get(language) == node.type and parent_class is not None:
         return "method"
     return raw
 
@@ -267,7 +403,7 @@ def _build_result(
     newline_offsets: list[int],
 ) -> ComplexityResult | None:
     """Return a :class:`~fork_meter.models.ComplexityResult` for *node*, or ``None`` if anonymous."""
-    name = _get_name(node)
+    name = _get_name(node, language)
     if name is None:
         return None
     parent_class = _get_parent_class(node, language)
@@ -322,15 +458,17 @@ def analyze(
     paths: tuple[Path, ...],
     exclude_patterns: tuple[str, ...] = (),
     max_threshold: int = 10,
+    ignore_file: IgnoreFile | None = None,
 ) -> AnalysisResult:
     """Scan *paths*, compute cyclomatic complexity, and filter results by threshold.
 
     :param paths: File or directory paths to scan.
     :param exclude_patterns: Glob patterns to exclude from scanning.
     :param max_threshold: Only include results with complexity strictly above this value.
+    :param ignore_file: Optional gitignore-style filter; matched paths are skipped.
     :returns: :class:`AnalysisResult` with summary counts and filtered results.
     """
-    files = _scanner.scan(paths, exclude_patterns)
+    files = _scanner.scan(paths, exclude_patterns, ignore_file=ignore_file)
     all_results: list[ComplexityResult] = []
     for file_path, language in files:
         all_results.extend(analyze_file(file_path, language))

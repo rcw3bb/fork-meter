@@ -11,16 +11,17 @@ decision points and branching paths in source code.
 from env_dir_bootstrap import EnvDirBootstrap
 from logenrich import setup_logger
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 _bootstrapper = EnvDirBootstrap(
     env_var="FORK_METER_CONFIG_DIR",
-    resources=["logging.ini"],
+    resources=["logging.ini", "fm_ignore"],
     package="fork_meter",
 )
 
 _bootstrapper.setup()
 
 CONF_DIR = str(_bootstrapper.get_dir())
+IGNORE_FILE = str(_bootstrapper.resolve("fm_ignore"))
 
 setup_logger("fork_meter", conf_dir=CONF_DIR)
