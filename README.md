@@ -1,7 +1,7 @@
 # fork-meter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](CHANGELOG.md)
 
 A command-line tool that measures cyclomatic complexity by counting decision points and branching paths in source code.
 
@@ -25,6 +25,12 @@ pip install fork-meter
 | Java | tree-sitter-java |
 | Go | tree-sitter-go |
 | Gosu | tree-sitter-gosu |
+| C | tree-sitter-c |
+| C++ | tree-sitter-cpp |
+| C# | tree-sitter-c-sharp |
+| Rust | tree-sitter-rust |
+| Kotlin | tree-sitter-kotlin |
+| Scala | tree-sitter-scala |
 
 ## Usage
 
@@ -53,12 +59,20 @@ fork-meter [OPTIONS] PATHS...
 fork-meter src/ --max 5 --format html --exclude "**/*_test.py"
 ```
 
-Output:
+While scanning, a live progress indicator shows how many files have been checked:
+
+```
+fork-meter checking files ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42/120 0:00:03
+```
+
+Once done, it is replaced by the final summary:
 
 ```
 fork-meter done in 0.08s
   ✓ reports/fork-meter-output.html
 ```
+
+`fork-meter` exits with status code `1` if any function exceeds `--max` complexity, and `0` otherwise.
 
 ## Complexity Scale
 
@@ -76,7 +90,8 @@ fork-meter done in 0.08s
 
 ## Configuration
 
-`fork-meter` bootstraps its log/config directory automatically. Override the location with:
+`fork-meter` bootstraps its log/config directory automatically, including a default `fm_ignore` file
+(gitignore-style patterns) used to skip matching files during a scan. Override the location with:
 
 ```bash
 export FORK_METER_CONFIG_DIR=/path/to/dir

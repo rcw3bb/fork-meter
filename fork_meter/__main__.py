@@ -13,6 +13,7 @@ from pathlib import Path
 import click
 from braincraft import IgnoreFile
 from rich.console import Console
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 
 from . import IGNORE_FILE, __version__
 from .analyzer import analyze
@@ -45,6 +46,18 @@ def _load_ignore_file() -> IgnoreFile | None:
     except FileNotFoundError as exc:
         _logger.warning("Ignore file unavailable: %s", exc)
         return None
+
+
+def _build_progress() -> Progress:
+    """Return a transient :class:`~rich.progress.Progress` for the file-checking status."""
+    return Progress(
+        TextColumn("[bold cyan]fork-meter[/bold cyan] checking files"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+        console=_console,
+        transient=True,
+    )
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
@@ -106,12 +119,17 @@ def main(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     out_dir = Path(output_dir) if output_dir else Path.cwd() / "reports"
 
     start = time.monotonic()
-    result = analyze(
-        resolved_paths,
-        exclude_patterns=exclude,
-        max_threshold=max_threshold,
-        ignore_file=_load_ignore_file(),
-    )
+    with _build_progress() as progress:
+        task = progress.add_task("checking", total=None)
+        result = analyze(
+            resolved_paths,
+            exclude_patterns=exclude,
+            max_threshold=max_threshold,
+            ignore_file=_load_ignore_file(),
+            on_progress=lambda done, total: progress.update(
+                task, completed=done, total=total
+            ),
+        )
 
     written: list[Path] = []
     if output_format in ("json", "both"):
