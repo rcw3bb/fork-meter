@@ -28,6 +28,30 @@ def test_get_language_gosu():
     assert _parser.get_language("Gosu") is not None
 
 
+def test_get_language_c():
+    assert _parser.get_language("C") is not None
+
+
+def test_get_language_cpp():
+    assert _parser.get_language("C++") is not None
+
+
+def test_get_language_csharp():
+    assert _parser.get_language("C#") is not None
+
+
+def test_get_language_rust():
+    assert _parser.get_language("Rust") is not None
+
+
+def test_get_language_kotlin():
+    assert _parser.get_language("Kotlin") is not None
+
+
+def test_get_language_scala():
+    assert _parser.get_language("Scala") is not None
+
+
 def test_get_language_unknown():
     assert _parser.get_language("COBOL") is None
 

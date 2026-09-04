@@ -1,8 +1,9 @@
 """Tests for fork_meter.analyzer — additional coverage for edge cases."""
 
 import pytest
+from braincraft import IgnoreFile
 
-from fork_meter.analyzer import _get_parent_class_go, analyze_file
+from fork_meter.analyzer import _get_parent_class_go, analyze, analyze_file
 from fork_meter import parser as _parser
 
 
@@ -117,3 +118,15 @@ def test_get_parent_class_go_no_receiver():
             return None
 
     assert _get_parent_class_go(FakeNode()) is None
+
+
+def test_analyze_forwards_ignore_file(tmp_path):
+    (tmp_path / "keep.py").write_bytes(b"def foo():\n    if True:\n        pass\n")
+    (tmp_path / "skip.py").write_bytes(b"def bar():\n    if True:\n        pass\n")
+    ignore_path = tmp_path / ".fm_ignore"
+    ignore_path.write_text("skip.py\n")
+    ignore_file = IgnoreFile(ignore_path, base_dir=tmp_path)
+    result = analyze((tmp_path,), max_threshold=0, ignore_file=ignore_file)
+    names = {r.name for r in result.results}
+    assert "foo" in names
+    assert "bar" not in names

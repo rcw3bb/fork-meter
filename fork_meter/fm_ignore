@@ -1,0 +1,10 @@
+# fork-meter ignore file.
+#
+# Gitignore-style patterns for paths that fork-meter should skip during scanning,
+# in addition to the tool's built-in default exclusions (.git, node_modules, build, etc.).
+# Edit this file (located under FORK_METER_CONFIG_DIR) to add your own patterns.
+#
+# Examples:
+# *.generated.py
+# vendor/
+# legacy/

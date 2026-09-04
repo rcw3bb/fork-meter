@@ -24,6 +24,17 @@ EXTENSION_TO_LANGUAGE: dict[str, str] = {
     ".go": "Go",
     ".gs": "Gosu",
     ".gsx": "Gosu",
+    ".c": "C",
+    ".cpp": "C++",
+    ".cc": "C++",
+    ".cxx": "C++",
+    ".c++": "C++",
+    ".cs": "C#",
+    ".rs": "Rust",
+    ".kt": "Kotlin",
+    ".kts": "Kotlin",
+    ".scala": "Scala",
+    ".sc": "Scala",
 }
 
 _DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(

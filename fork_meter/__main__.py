@@ -6,13 +6,15 @@ Entry point for the fork-meter command-line tool.
 """
 
 import logging
+import sys
 import time
 from pathlib import Path
 
 import click
+from braincraft import IgnoreFile
 from rich.console import Console
 
-from . import __version__
+from . import IGNORE_FILE, __version__
 from .analyzer import analyze
 from .reporter import html_reporter, json_reporter
 
@@ -34,6 +36,15 @@ def _print_elapsed(elapsed: float, written: list[Path]) -> None:
     )
     for path in written:
         _console.print(f"  [green]\u2713[/green] {path}")
+
+
+def _load_ignore_file() -> IgnoreFile | None:
+    """Return the bundled :class:`~braincraft.IgnoreFile`, or ``None`` if unavailable."""
+    try:
+        return IgnoreFile(Path(IGNORE_FILE))
+    except FileNotFoundError as exc:
+        _logger.warning("Ignore file unavailable: %s", exc)
+        return None
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
@@ -96,7 +107,10 @@ def main(  # pylint: disable=too-many-arguments,too-many-positional-arguments
 
     start = time.monotonic()
     result = analyze(
-        resolved_paths, exclude_patterns=exclude, max_threshold=max_threshold
+        resolved_paths,
+        exclude_patterns=exclude,
+        max_threshold=max_threshold,
+        ignore_file=_load_ignore_file(),
     )
 
     written: list[Path] = []
@@ -115,6 +129,9 @@ def main(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         )
 
     _print_elapsed(time.monotonic() - start, written)
+
+    if result.results:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
