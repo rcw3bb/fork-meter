@@ -11,7 +11,7 @@ decision points and branching paths in source code.
 from env_dir_bootstrap import EnvDirBootstrap
 from logenrich import setup_logger
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 _bootstrapper = EnvDirBootstrap(
     env_var="FORK_METER_CONFIG_DIR",
