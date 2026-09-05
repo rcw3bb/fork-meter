@@ -1,6 +1,15 @@
 # Changelog
 
+## 1.1.1 - 2026-09-05
+
+### Fixed
+
+- Reconfigure `stdout`/`stderr` to UTF-8 (with `errors="replace"`) before creating the Rich
+  console, preventing `UnicodeEncodeError` crashes when output is piped/redirected by another
+  process (e.g. a calling app capturing subprocess output on a non-UTF-8 codepage).
+
 ## 1.1.0 - 2026-09-04
+
 
 ### Added
 

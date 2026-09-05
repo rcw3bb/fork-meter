@@ -1,7 +1,6 @@
 # fork-meter
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](CHANGELOG.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/Version-1.1.1-green.svg)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.14%2B-blue)](https://www.python.org/) [![PyPI](https://img.shields.io/badge/PyPI-fork--meter-orange)](https://pypi.org/project/fork-meter/)
 
 A command-line tool that measures cyclomatic complexity by counting decision points and branching paths in source code.
 

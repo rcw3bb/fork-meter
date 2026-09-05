@@ -20,6 +20,17 @@ from .analyzer import analyze
 from .reporter import html_reporter, json_reporter
 
 _logger = logging.getLogger(__name__)
+
+
+def _ensure_utf8_streams() -> None:
+    """Reconfigure stdout/stderr to UTF-8 so redirected/piped output never raises UnicodeEncodeError."""
+    for stream in (sys.stdout, sys.stderr):
+        encoding: str = str(getattr(stream, "encoding", None) or "")
+        if hasattr(stream, "reconfigure") and encoding.lower() != "utf-8":
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+_ensure_utf8_streams()
 _console = Console()
 
 _CC_STYLE = {
@@ -99,7 +110,9 @@ def _build_progress() -> Progress:
     metavar="PATTERN",
     help="Glob pattern to exclude from scanning (repeatable).",
 )
-@click.version_option(version=__version__, prog_name="fork-meter")
+@click.version_option(
+    version=__version__, prog_name="fork-meter", message="%(prog)s v%(version)s"
+)
 def main(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     paths: tuple[str, ...],
     max_threshold: int,
