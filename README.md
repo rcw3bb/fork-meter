@@ -1,6 +1,6 @@
 # fork-meter
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/Version-1.1.1-green.svg)](CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.14%2B-blue)](https://www.python.org/) [![PyPI](https://img.shields.io/badge/PyPI-fork--meter-orange)](https://pypi.org/project/fork-meter/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/rcw3bb/fork-meter/blob/main/LICENSE) [![Version](https://img.shields.io/badge/Version-1.2.0-green.svg)](https://github.com/rcw3bb/fork-meter/blob/main/CHANGELOG.md) [![Python](https://img.shields.io/badge/Python-3.14%2B-blue)](https://www.python.org/) [![PyPI](https://img.shields.io/badge/PyPI-fork--meter-orange)](https://pypi.org/project/fork-meter/)
 
 A command-line tool that measures cyclomatic complexity by counting decision points and branching paths in source code.
 
@@ -48,6 +48,7 @@ fork-meter [OPTIONS] PATHS...
 | `--output-dir DIR` | `<cwd>/reports` | Directory for output files |
 | `--format [json\|html\|both]` | `both` | Output format |
 | `--exclude PATTERN` | — | Glob pattern to exclude from scanning (repeatable) |
+| `--target-list` | `false` | Treat `PATHS` as a single existing file listing target paths (files and/or directories), one per line, instead of separate arguments |
 | `-V, --version` | | Show version and exit |
 | `-h, --help` | | Show help and exit |
 
@@ -56,6 +57,19 @@ fork-meter [OPTIONS] PATHS...
 ```bash
 # Scan a project, flag anything above complexity 5, write HTML only
 fork-meter src/ --max 5 --format html --exclude "**/*_test.py"
+```
+
+### Target List
+
+Use `--target-list` to scan targets listed in a file instead of passing them as separate
+arguments. `PATHS` must then be a single existing file, one target per line; blank lines
+and lines starting with `#` are skipped.
+
+```bash
+# targets.txt:
+#   src/
+#   lib/utils.py
+fork-meter targets.txt --target-list
 ```
 
 While scanning, a live progress indicator shows how many files have been checked:
@@ -96,6 +110,18 @@ fork-meter done in 0.08s
 export FORK_METER_CONFIG_DIR=/path/to/dir
 ```
 
+A `config.ini` file is also bootstrapped into that directory. Its `[override]` section lets you
+rename the ignore file `fork-meter` reads, in case you want to reuse an existing gitignore-style
+file under a different name:
+
+```ini
+[override]
+ignore-file = fm_ignore
+```
+
+If the configured file is missing, `fork-meter` logs a warning and falls back to the bundled
+`fm_ignore` file.
+
 ## Development
 
 ### Setup
@@ -116,6 +142,8 @@ poetry run black fork_meter; poetry run pylint fork_meter
 poetry run pytest --cov=fork_meter tests --cov-report html
 ```
 
+## [Changelog](https://github.com/rcw3bb/fork-meter/blob/main/CHANGELOG.md)
+
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](https://github.com/rcw3bb/fork-meter/blob/main/LICENSE) file for details.

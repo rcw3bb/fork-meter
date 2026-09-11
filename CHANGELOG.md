@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0 - 2026-09-12
+
+### Added
+
+- `--target-list` CLI flag: treats the positional `PATHS` argument as a single existing file
+  listing target paths (files and/or directories), one per line (blank lines and `#`-comment
+  lines skipped), instead of separate command-line path arguments.
+- `config.ini` — new bundled default file (seeded into `FORK_METER_CONFIG_DIR` like
+  `logging.ini`/`fm_ignore`) with an `[override]` section; its `ignore-file` key names the file
+  used in place of `fm_ignore`, resolved relative to `FORK_METER_CONFIG_DIR`. Read via a new
+  `Config` class in `fork_meter/config.py`.
+- `_load_ignore_file()` now falls back to the bundled `fm_ignore` (logging a warning) when the
+  configured custom ignore filename is missing, instead of giving up immediately.
+
+### Changed
+
+- Bumped `braincraft` dependency to `>=1.3.1,<2.0.0`.
+
 ## 1.1.1 - 2026-09-05
 
 ### Fixed

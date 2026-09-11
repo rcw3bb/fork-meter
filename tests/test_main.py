@@ -3,12 +3,18 @@
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
 
-from fork_meter.__main__ import _ensure_utf8_streams, _load_ignore_file, main
+from fork_meter.__main__ import (
+    _ensure_utf8_streams,
+    _load_ignore_file,
+    _read_target_list,
+    main,
+)
 
 _FORK_METER_EXE = shutil.which("fork-meter")
 
@@ -128,7 +134,79 @@ def test_load_ignore_file_returns_ignore_file():
 
 def test_load_ignore_file_missing_returns_none(monkeypatch):
     monkeypatch.setattr("fork_meter.__main__.IGNORE_FILE", "/does/not/exist/.fm_ignore")
+    monkeypatch.setattr(
+        "fork_meter.__main__._config.get_ignore_file", lambda: "missing.ignore"
+    )
     assert _load_ignore_file() is None
+
+
+def test_load_ignore_file_falls_back_to_default_when_custom_missing(
+    monkeypatch, caplog
+):
+    monkeypatch.setattr(
+        "fork_meter.__main__._config.get_ignore_file", lambda: "missing.ignore"
+    )
+    with caplog.at_level("WARNING"):
+        ignore_file = _load_ignore_file()
+    assert ignore_file is not None
+    assert "falling back to default" in caplog.text
+
+
+def test_read_target_list_parses_one_path_per_line(tmp_path):
+    list_file = tmp_path / "targets.txt"
+    list_file.write_text("src\nlib\ntests\n", encoding="utf-8")
+
+    result = _read_target_list(list_file)
+
+    assert result == [Path("src"), Path("lib"), Path("tests")]
+
+
+def test_read_target_list_skips_blank_and_comment_lines(tmp_path):
+    list_file = tmp_path / "targets.txt"
+    list_file.write_text("src\n\n# a comment\n  \nlib\n", encoding="utf-8")
+
+    result = _read_target_list(list_file)
+
+    assert result == [Path("src"), Path("lib")]
+
+
+def test_main_target_list_scans_listed_targets(tmp_path):
+    sample_file = tmp_path / "code.py"
+    sample_file.write_bytes(b"def foo():\n    return 1\n")
+    list_file = tmp_path / "targets.txt"
+    list_file.write_text(f"{sample_file}\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        main,
+        [
+            str(list_file),
+            "--target-list",
+            "--format",
+            "json",
+            "--output-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (tmp_path / "fork-meter-output.json").exists()
+
+
+def test_main_target_list_rejects_multiple_paths(tmp_path):
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+
+    result = CliRunner().invoke(main, [str(tmp_path), str(other_dir), "--target-list"])
+
+    assert result.exit_code != 0
+    assert "--target-list" in result.output
+
+
+def test_main_target_list_rejects_directory_path(tmp_path):
+    result = CliRunner().invoke(main, [str(tmp_path), "--target-list"])
+
+    assert result.exit_code != 0
+    assert "--target-list" in result.output
 
 
 def test_ensure_utf8_streams_reconfigures_non_utf8(monkeypatch):

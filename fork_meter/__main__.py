@@ -15,11 +15,13 @@ from braincraft import IgnoreFile
 from rich.console import Console
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 
-from . import IGNORE_FILE, __version__
+from . import CONF_DIR, IGNORE_FILE, __version__
 from .analyzer import analyze
+from .config import Config
 from .reporter import html_reporter, json_reporter
 
 _logger = logging.getLogger(__name__)
+_config = Config()
 
 
 def _ensure_utf8_streams() -> None:
@@ -51,12 +53,33 @@ def _print_elapsed(elapsed: float, written: list[Path]) -> None:
 
 
 def _load_ignore_file() -> IgnoreFile | None:
-    """Return the bundled :class:`~braincraft.IgnoreFile`, or ``None`` if unavailable."""
+    """Return the configured :class:`~braincraft.IgnoreFile`, falling back to the bundled default."""
+    ignore_path = Path(CONF_DIR) / _config.get_ignore_file()
+    _logger.debug("Loading ignore file from: %s", ignore_path)
+    try:
+        return IgnoreFile(ignore_path)
+    except FileNotFoundError as exc:
+        if ignore_path == Path(IGNORE_FILE):
+            _logger.warning("Ignore file unavailable: %s", exc)
+            return None
+        _logger.warning(
+            "Configured ignore file unavailable (%s); falling back to default.", exc
+        )
     try:
         return IgnoreFile(Path(IGNORE_FILE))
     except FileNotFoundError as exc:
         _logger.warning("Ignore file unavailable: %s", exc)
         return None
+
+
+def _read_target_list(list_file: Path) -> list[Path]:
+    """Read one target path per line from *list_file*, skipping blanks and ``#`` comments."""
+    result: list[Path] = []
+    for line in list_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            result.append(Path(stripped))
+    return result
 
 
 def _build_progress() -> Progress:
@@ -110,6 +133,17 @@ def _build_progress() -> Progress:
     metavar="PATTERN",
     help="Glob pattern to exclude from scanning (repeatable).",
 )
+@click.option(
+    "--target-list",
+    "target_list",
+    is_flag=True,
+    default=False,
+    help=(
+        "Treat PATHS as a single existing file listing target paths (files "
+        "and/or directories), one per line, instead of separate arguments. "
+        "Blank lines and lines starting with '#' are skipped."
+    ),
+)
 @click.version_option(
     version=__version__, prog_name="fork-meter", message="%(prog)s v%(version)s"
 )
@@ -120,15 +154,24 @@ def main(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     output_dir: str | None,
     output_format: str,
     exclude: tuple[str, ...],
+    target_list: bool,
 ) -> None:
     """Measure cyclomatic complexity of source code.
 
     PATH arguments may be files or directories; directories are scanned recursively.
     Only functions with complexity strictly above --max are included in the report.
+    With --target-list, PATHS must be a single file listing targets, one per line.
     """
     _logger.info("fork-meter started")
 
-    resolved_paths = tuple(Path(p) for p in paths)
+    if target_list:
+        if len(paths) != 1 or not Path(paths[0]).is_file():
+            raise click.UsageError(
+                "--target-list requires PATHS to be a single existing file."
+            )
+        resolved_paths = tuple(_read_target_list(Path(paths[0])))
+    else:
+        resolved_paths = tuple(Path(p) for p in paths)
     out_dir = Path(output_dir) if output_dir else Path.cwd() / "reports"
 
     start = time.monotonic()
